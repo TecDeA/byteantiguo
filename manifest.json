@@ -1,0 +1,72 @@
+{
+  "id": "./",
+  "name": "Byte · Reloj de tarjetas",
+  "short_name": "Byte",
+  "description": "Simulador de un byte de 8 bits con tarjetas split-flap e interruptores tipo toggle por cada bit.",
+  "lang": "es",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0b0b0f",
+  "theme_color": "#0b0b0f",
+  "categories": ["utilities", "education", "productivity"],
+  "icons": [
+    {
+      "src": "icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Aleatorio",
+      "short_name": "Aleatorio",
+      "description": "Genera un byte aleatorio",
+      "url": "./?action=random",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Invertir bits",
+      "short_name": "Invertir",
+      "description": "Invierte todos los bits del byte",
+      "url": "./?action=invert",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Todo a cero",
+      "short_name": "Todo 0",
+      "description": "Pone los 8 bits a 0",
+      "url": "./?action=zero",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Todo a uno",
+      "short_name": "Todo 1",
+      "description": "Pone los 8 bits a 1",
+      "url": "./?action=full",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Byte">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#1c1c26"/>
+      <stop offset="1" stop-color="#08080c"/>
+    </linearGradient>
+
+    <radialGradient id="glow" cx="50%" cy="42%" r="58%">
+      <stop offset="0" stop-color="#ffb347" stop-opacity=".22"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="cardTop" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2e2e3a"/>
+      <stop offset="1" stop-color="#17171e"/>
+    </linearGradient>
+
+    <linearGradient id="cardBot" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#121218"/>
+      <stop offset="1" stop-color="#0a0a0f"/>
+    </linearGradient>
+
+    <linearGradient id="amber" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffdca6"/>
+      <stop offset="1" stop-color="#e8901f"/>
+    </linearGradient>
+
+    <clipPath id="cardClip">
+      <rect x="128" y="128" width="256" height="256" rx="34"/>
+    </clipPath>
+  </defs>
+
+  <!-- Fondo a sangre completa (apto también como maskable) -->
+  <rect width="512" height="512" fill="url(#bg)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+
+  <!-- Sombra de la tarjeta -->
+  <rect x="132" y="142" width="256" height="256" rx="34" fill="#000" opacity=".55"/>
+
+  <!-- Tarjeta con el "8" partido por la bisagra -->
+  <g clip-path="url(#cardClip)">
+    <!-- mitad superior -->
+    <rect x="128" y="128" width="256" height="128" fill="url(#cardTop)"/>
+    <ellipse cx="256" cy="198" rx="58" ry="42"
+             fill="none" stroke="url(#amber)" stroke-width="24"/>
+
+    <!-- mitad inferior -->
+    <rect x="128" y="256" width="256" height="128" fill="url(#cardBot)"/>
+    <ellipse cx="256" cy="318" rx="66" ry="48"
+             fill="none" stroke="url(#amber)" stroke-width="24"/>
+  </g>
+
+  <!-- Bisagra -->
+  <rect x="128" y="252" width="256" height="8" fill="#05050a"/>
+  <rect x="128" y="252" width="256" height="1.5" fill="#ffffff" opacity=".07"/>
+
+  <!-- Borde de la tarjeta -->
+  <rect x="128" y="128" width="256" height="256" rx="34"
+        fill="none" stroke="#000" stroke-opacity=".6" stroke-width="2"/>
+</svg>

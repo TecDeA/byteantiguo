@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Byte · Reloj de tarjetas</title>
+<meta name="description" content="Simulador de un byte con tarjetas split-flap e interruptores por bit.">
+
+<!-- ---------- PWA ---------- -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0b0f">
+<meta name="color-scheme" content="dark">
+<meta name="application-name" content="Byte">
+
+<!-- iOS / Safari -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Byte">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+
+<!-- Iconos -->
+<link rel="icon" type="image/svg+xml" href="icons/icon.svg">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icons/icon-512.png">
+
+<style>
+  :root {
+    --fw: clamp(30px, 8.6vw, 72px);
+    --fh: calc(var(--fw) * 1.42);
+    --ink: #f3e9d6;
+    --amber: #ffb347;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+
+  body {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    /* Safe-area para modo standalone con barra translúcida */
+    padding:
+      calc(26px + env(safe-area-inset-top))
+      calc(14px + env(safe-area-inset-right))
+      calc(26px + env(safe-area-inset-bottom))
+      calc(14px + env(safe-area-inset-left));
+
+    background:
+      radial-gradient(1100px 620px at 50% -12%, #1e1e28 0%, #0b0b0f 55%, #050507 100%);
+    color: #e8e6e0;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+
+    /* En standalone evitamos el rebote elástico */
+    overscroll-behavior: none;
+  }
+
+  .app { width: 100%; max-width: 860px; }
+
+  /* ---------- Cabecera ---------- */
+  header { text-align: center; margin-bottom: 22px; }
+
+  h1 {
+    margin: 0;
+    font-size: clamp(19px, 3.6vw, 28px);
+    font-weight: 800;
+    letter-spacing: .45em;
+    text-indent: .45em;
+    text-transform: uppercase;
+    color: #f0e7d4;
+    text-shadow: 0 0 26px rgba(255, 179, 71, .18);
+  }
+
+  .sub {
+    margin: 9px 0 0;
+    font-size: 11px;
+    letter-spacing: .3em;
+    text-transform: uppercase;
+    color: #55555f;
+    font-weight: 600;
+  }
+
+  /* ---------- Tablero ---------- */
+  .board {
+    padding: clamp(14px, 2.6vw, 26px);
+    border-radius: 20px;
+    background: linear-gradient(180deg, #16161c 0%, #0d0d12 100%);
+    border: 1px solid #26262f;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.06),
+      0 30px 60px -22px rgba(0,0,0,.95),
+      0 0 0 1px rgba(0,0,0,.55);
+  }
+
+  .bits {
+    display: grid;
+    grid-template-columns: repeat(8, var(--fw));
+    gap: clamp(6px, 1.1vw, 13px);
+    justify-content: center;
+  }
+
+  .bit {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 9px;
+  }
+
+  .place {
+    font-size: clamp(9px, 1.4vw, 12px);
+    font-weight: 700;
+    letter-spacing: .05em;
+    color: #4c4c58;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- Tarjeta (flap) ---------- */
+  .flap {
+    position: relative;
+    width: var(--fw);
+    height: var(--fh);
+    perspective: 700px;
+    cursor: pointer;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .flap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9px;
+    box-shadow: 0 9px 18px rgba(0,0,0,.7), 0 2px 4px rgba(0,0,0,.6);
+    z-index: -1;
+    pointer-events: none;
+  }
+
+  /* Línea de bisagra */
+  .flap::after {
+    content: "";
+    position: absolute;
+    left: 0; right: 0;
+    top: calc(50% - 1px);
+    height: 2px;
+    background: #040406;
+    border-radius: 1px;
+    box-shadow: 0 1px 0 rgba(255,255,255,.05);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .half {
+    position: absolute;
+    left: 0;
+    width: 100%;
+    height: 50%;
+    overflow: hidden;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    will-change: transform;
+  }
+
+  .half.top {
+    top: 0;
+    border-radius: 8px 8px 0 0;
+    background: linear-gradient(180deg, #24242d 0%, #14141a 100%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+  }
+
+  .half.bottom {
+    bottom: 0;
+    border-radius: 0 0 8px 8px;
+    background: linear-gradient(180deg, #101015 0%, #0a0a0e 100%);
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,.7);
+  }
+
+  /* ---------- Carácter centrado ---------- */
+  .char {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: var(--fh);
+
+    /* Centrado exacto con flexbox */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: calc(var(--fh) * 0.62);
+    font-weight: 700;
+    color: var(--ink);
+
+    /* Corrección óptica (los dígitos no tienen descendente) */
+    transform: translateY(0.055em);
+
+    transition: color .18s;
+  }
+
+  .half.top .char    { top: 0; }
+  .half.bottom .char { top: calc(var(--fh) * -0.5); }
+
+  .flap:hover .char { color: #ffffff; }
+
+  .top-static    { z-index: 1; }
+  .bottom-static { z-index: 1; }
+
+  .flip-top {
+    z-index: 3;
+    transform-origin: 50% 100%;
+    transform: rotateX(0deg);
+  }
+
+  .flip-bottom {
+    z-index: 2;
+    transform-origin: 50% 0%;
+    transform: rotateX(90deg);
+  }
+
+  /* ---------- Interruptor ---------- */
+  .switch {
+    position: relative;
+    width: calc(var(--fw) * 0.92);
+    height: clamp(20px, calc(var(--fw) * 0.44), 32px);
+    padding: 0;
+    border-radius: 999px;
+    border: 1px solid #2a2a33;
+    background: linear-gradient(180deg, #0f0f14, #1a1a21);
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.9), 0 1px 0 rgba(255,255,255,.05);
+    cursor: pointer;
+    transition: border-color .22s, box-shadow .22s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .switch:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 3px;
+  }
+
+  .knob {
+    position: absolute;
+    top: 50%;
+    left: 2px;
+    height: calc(100% - 4px);
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #5c5c69, #34343e);
+    box-shadow: 0 1px 3px rgba(0,0,0,.85), inset 0 1px 0 rgba(255,255,255,.2);
+    transform: translateY(-50%);
+    transition:
+      left .22s cubic-bezier(.34,1.4,.5,1),
+      transform .22s cubic-bezier(.34,1.4,.5,1),
+      background .22s,
+      box-shadow .22s;
+  }
+
+  .switch[aria-checked="true"] {
+    border-color: #4b3a1d;
+    box-shadow: inset 0 2px 6px rgba(0,0,0,.9), 0 0 14px rgba(255,179,71,.16);
+  }
+
+  .switch[aria-checked="true"] .knob {
+    left: calc(100% - 2px);
+    transform: translate(-100%, -50%);
+    background: linear-gradient(180deg, #ffd79a, #ee9f34);
+    box-shadow: 0 0 14px rgba(255,170,60,.7), inset 0 1px 0 rgba(255,255,255,.45);
+  }
+
+  /* ---------- Lecturas ---------- */
+  .readout {
+    margin-top: 16px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(98px, 1fr));
+    gap: 8px;
+  }
+
+  .item {
+    min-width: 0;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: #101015;
+    border: 1px solid #22222b;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .item .label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: #5a5a68;
+  }
+
+  .item .value {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: clamp(15px, 2.3vw, 20px);
+    font-weight: 700;
+    color: #ffd79a;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  /* ---------- Botones ---------- */
+  .controls {
+    margin-top: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+
+  .btn {
+    font: inherit;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    padding: 10px 17px;
+    border-radius: 999px;
+    border: 1px solid #2c2c36;
+    background: linear-gradient(180deg, #1c1c23, #141419);
+    color: #b6b4ad;
+    cursor: pointer;
+    transition: .18s;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .btn:hover {
+    color: #fff;
+    border-color: #3e3e4b;
+    background: linear-gradient(180deg, #25252e, #1a1a21);
+  }
+
+  .btn:active { transform: translateY(1px); }
+
+  .btn:focus-visible {
+    outline: 2px solid var(--amber);
+    outline-offset: 2px;
+  }
+
+  /* Botón de instalación destacado */
+  .btn.install {
+    border-color: #5a4520;
+    color: #ffd79a;
+    background: linear-gradient(180deg, #2b2113, #1c160c);
+    box-shadow: 0 0 18px rgba(255,179,71,.18);
+  }
+
+  .btn.install:hover {
+    border-color: #8a6a2e;
+    background: linear-gradient(180deg, #3a2c17, #241b0f);
+    color: #fff;
+  }
+
+  .btn[hidden] { display: none; }
+
+  /* ---------- Móvil ---------- */
+  @media (max-width: 560px) {
+    :root { --fw: clamp(42px, 16vw, 62px); }
+    .bits {
+      grid-template-columns: repeat(4, var(--fw));
+      row-gap: 26px;
+    }
+    h1 { letter-spacing: .3em; text-indent: .3em; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header>
+    <h1>Byte</h1>
+    <p class="sub">Reloj de tarjetas · 8 bits</p>
+  </header>
+
+  <div class="board">
+    <div class="bits" id="bits"></div>
+  </div>
+
+  <div class="readout">
+    <div class="item"><span class="label">Dec</span><span class="value" id="out-dec">0</span></div>
+    <div class="item"><span class="label">Hex</span><span class="value" id="out-hex">0x00</span></div>
+    <div class="item"><span class="label">Oct</span><span class="value" id="out-oct">0o0</span></div>
+    <div class="item"><span class="label">Con signo</span><span class="value" id="out-signed">0</span></div>
+    <div class="item"><span class="label">ASCII</span><span class="value" id="out-ascii">·</span></div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="btn-random" type="button">Aleatorio</button>
+    <button class="btn" id="btn-invert" type="button">Invertir</button>
+    <button class="btn" id="btn-zero"   type="button">Todo 0</button>
+    <button class="btn" id="btn-full"   type="button">Todo 1</button>
+    <button class="btn install" id="btn-install" type="button" hidden>Instalar</button>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  const FLIP_MS = 300;                 // duración total del volteo
+  const bits = new Array(8).fill(0);   // bits[i] -> bit de peso 2^i
+  const flapEls = new Array(8);
+  const switchEls = new Array(8);
+
+  const bitsEl   = document.getElementById("bits");
+  const outDec   = document.getElementById("out-dec");
+  const outHex   = document.getElementById("out-hex");
+  const outOct   = document.getElementById("out-oct");
+  const outSign  = document.getElementById("out-signed");
+  const outAscii = document.getElementById("out-ascii");
+
+  /* =========================================================
+     Construcción del tablero (de MSB a LSB, izquierda → derecha)
+     ========================================================= */
+  for (let i = 7; i >= 0; i--) {
+    const col = document.createElement("div");
+    col.className = "bit";
+
+    const place = document.createElement("div");
+    place.className = "place";
+    place.textContent = String(1 << i);
+
+    const flap = document.createElement("div");
+    flap.className = "flap";
+    flap.dataset.value = "0";
+    flap.innerHTML =
+      '<div class="half top top-static"><span class="char">0</span></div>' +
+      '<div class="half bottom bottom-static"><span class="char">0</span></div>' +
+      '<div class="half top flip-top"><span class="char">0</span></div>' +
+      '<div class="half bottom flip-bottom"><span class="char">0</span></div>';
+
+    const sw = document.createElement("button");
+    sw.type = "button";
+    sw.className = "switch";
+    sw.setAttribute("role", "switch");
+    sw.setAttribute("aria-checked", "false");
+    sw.setAttribute("aria-label", "Bit " + i + " (valor " + (1 << i) + ")");
+    sw.innerHTML = '<span class="knob"></span>';
+
+    const toggle = function () {
+      bits[i] ^= 1;
+      setBit(flap, String(bits[i]), true);
+      sw.setAttribute("aria-checked", bits[i] ? "true" : "false");
+      updateReadout();
+    };
+
+    sw.addEventListener("click", toggle);
+    flap.addEventListener("click", toggle);
+
+    flapEls[i] = flap;
+    switchEls[i] = sw;
+
+    col.append(place, flap, sw);
+    bitsEl.append(col);
+  }
+
+  /* =========================================================
+     Animación de la tarjeta (split-flap)
+     ========================================================= */
+  function setBit(flap, next, animate) {
+    const cur = flap.dataset.value;
+    if (cur === next) return;
+    flap.dataset.value = next;
+
+    const topStatic      = flap.querySelector(".top-static .char");
+    const bottomStatic   = flap.querySelector(".bottom-static .char");
+    const flipTop        = flap.querySelector(".flip-top");
+    const flipBottom     = flap.querySelector(".flip-bottom");
+    const flipTopChar    = flipTop.querySelector(".char");
+    const flipBottomChar = flipBottom.querySelector(".char");
+
+    flap.getAnimations().forEach(function (a) { a.cancel(); });
+
+    const token = (flap._token = (flap._token || 0) + 1);
+
+    topStatic.textContent = next;
+
+    if (!animate) {
+      bottomStatic.textContent   = next;
+      flipTopChar.textContent    = next;
+      flipBottomChar.textContent = next;
+      flipTop.style.transform    = "rotateX(0deg)";
+      flipBottom.style.transform = "rotateX(90deg)";
+      return;
+    }
+
+    flipTopChar.textContent    = cur;
+    flipBottomChar.textContent = next;
+    bottomStatic.textContent   = cur;
+    flipTop.style.transform    = "rotateX(0deg)";
+    flipBottom.style.transform = "rotateX(90deg)";
+
+    const half = FLIP_MS / 2;
+
+    const a1 = flipTop.animate(
+      [{ transform: "rotateX(0deg)" }, { transform: "rotateX(-90deg)" }],
+      { duration: half, easing: "cubic-bezier(.45,.05,.75,.35)", fill: "forwards" }
+    );
+
+    const a2 = flipBottom.animate(
+      [{ transform: "rotateX(90deg)" }, { transform: "rotateX(0deg)" }],
+      { duration: half, easing: "cubic-bezier(.25,.65,.35,1)", fill: "forwards", delay: half }
+    );
+
+    a2.finished.then(function () {
+      if (flap._token !== token) return;
+      bottomStatic.textContent   = next;
+      flipTopChar.textContent    = next;
+      flipBottomChar.textContent = next;
+      a1.cancel();
+      a2.cancel();
+      flipTop.style.transform    = "rotateX(0deg)";
+      flipBottom.style.transform = "rotateX(90deg)";
+    }).catch(function () { /* animación interrumpida */ });
+  }
+
+  /* =========================================================
+     Estado global
+     ========================================================= */
+  function currentValue() {
+    let v = 0;
+    for (let i = 0; i < 8; i++) if (bits[i]) v |= (1 << i);
+    return v;
+  }
+
+  function setValue(v, animate) {
+    animate = animate !== false;
+    for (let i = 0; i < 8; i++) {
+      const b = (v >> i) & 1;
+      bits[i] = b;
+      setBit(flapEls[i], String(b), animate);
+      switchEls[i].setAttribute("aria-checked", b ? "true" : "false");
+    }
+    updateReadout();
+  }
+
+  function asciiFor(v) {
+    if (v === 32) return "␠";
+    if (v >= 33 && v <= 126) return String.fromCharCode(v);
+    return "·";
+  }
+
+  function updateReadout() {
+    const v = currentValue();
+    outDec.textContent   = String(v);
+    outHex.textContent   = "0x" + v.toString(16).toUpperCase().padStart(2, "0");
+    outOct.textContent   = "0o" + v.toString(8);
+    outSign.textContent  = String(v > 127 ? v - 256 : v);
+    outAscii.textContent = asciiFor(v);
+  }
+
+  /* =========================================================
+     Botones
+     ========================================================= */
+  document.getElementById("btn-random").addEventListener("click", function () {
+    setValue(Math.floor(Math.random() * 256));
+  });
+
+  document.getElementById("btn-invert").addEventListener("click", function () {
+    setValue((~currentValue()) & 0xFF);
+  });
+
+  document.getElementById("btn-zero").addEventListener("click", function () {
+    setValue(0);
+  });
+
+  document.getElementById("btn-full").addEventListener("click", function () {
+    setValue(255);
+  });
+
+  /* =========================================================
+     Acciones desde atajos del manifest (?action=…)
+     ========================================================= */
+  (function applyActionFromUrl() {
+    let action = null;
+    try {
+      action = new URLSearchParams(location.search).get("action");
+    } catch (e) { /* noop */ }
+
+    if (action) {
+      if (action === "random")      setValue(Math.floor(Math.random() * 256));
+      else if (action === "invert") setValue((~currentValue()) & 0xFF);
+      else if (action === "zero")   setValue(0);
+      else if (action === "full")   setValue(255);
+
+      // Limpia la URL para que un recargado no repita la acción
+      try {
+        history.replaceState(null, "", location.pathname + location.hash);
+      } catch (e) { /* noop */ }
+    }
+  })();
+
+  /* =========================================================
+     Registro del Service Worker
+     ========================================================= */
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () {
+      navigator.serviceWorker
+        .register("service-worker.js", { scope: "./" })
+        .then(function (reg) {
+          // Si hay una versión nueva esperando, la activamos
+          reg.addEventListener("updatefound", function () {
+            const sw = reg.installing;
+            if (!sw) return;
+            sw.addEventListener("statechange", function () {
+              if (sw.state === "installed" && navigator.serviceWorker.controller) {
+                sw.postMessage("SKIP_WAITING");
+              }
+            });
+          });
+        })
+        .catch(function (err) {
+          console.warn("[PWA] Service worker no registrado:", err);
+        });
+
+      // Cuando el nuevo SW toma el control, recargamos una vez
+      let refreshing = false;
+      navigator.serviceWorker.addEventListener("controllerchange", function () {
+        if (refreshing) return;
+        refreshing = true;
+        location.reload();
+      });
+    });
+  }
+
+  /* =========================================================
+     Instalación (beforeinstallprompt)
+     ========================================================= */
+  (function setupInstallButton() {
+    const btn = document.getElementById("btn-install");
+    let deferredPrompt = null;
+
+    window.addEventListener("beforeinstallprompt", function (e) {
+      e.preventDefault();
+      deferredPrompt = e;
+      btn.hidden = false;
+    });
+
+    btn.addEventListener("click", function () {
+      if (!deferredPrompt) { btn.hidden = true; return; }
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.then(function () {
+        deferredPrompt = null;
+        btn.hidden = true;
+      }).catch(function () {
+        deferredPrompt = null;
+        btn.hidden = true;
+      });
+    });
+
+    window.addEventListener("appinstalled", function () {
+      deferredPrompt = null;
+      btn.hidden = true;
+    });
+
+    // Si ya está instalada, ocultamos el botón
+    if (window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true) {
+      btn.hidden = true;
+    }
+  })();
+
+  /* Arranque */
+  updateReadout();
+})();
+</script>
+</body>
+</html>
