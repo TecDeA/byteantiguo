@@ -5,7 +5,7 @@
      - Estáticos   → caché primero con revalidación en 2º plano
    ========================================================= */
 
-const VERSION = 'v1.0.3';
+const VERSION = 'v1.0.5';
 const CACHE_STATIC  = `byte-static-${VERSION}`;
 const CACHE_RUNTIME = `byte-runtime-${VERSION}`;
 
