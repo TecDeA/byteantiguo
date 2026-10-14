@@ -108,4 +108,16 @@ self.addEventListener('fetch', (event) => {
 /* ---------- mensajes desde la página ---------- */
 self.addEventListener('message', (event) => {
   if (event.data === 'SKIP_WAITING') self.skipWaiting();
+
+  // Petición de versión desde la página: respondemos por el puerto del canal
+  // (o por event.source si no viene canal) para que el chip muestre la versión real.
+  if (event.data === 'GET_VERSION') {
+    const payload = { type: 'VERSION', version: VERSION };
+
+    if (event.ports && event.ports.length > 0) {
+      event.ports[0].postMessage(payload);
+    } else if (event.source) {
+      event.source.postMessage(payload);
+    }
+  }
 });
