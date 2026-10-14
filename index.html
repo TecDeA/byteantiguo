@@ -662,48 +662,39 @@
     const chip = document.getElementById("version-chip");
     if (!chip) return;
 
+    let gotVersion = false;
+
     function setVersion(v) {
+      gotVersion = true;
       chip.textContent = v;
       chip.setAttribute("data-state", "ready");
     }
 
     function setUnavailable() {
+      // Solo mostramos "no disponible" si nunca hemos recibido una versión
+      if (gotVersion) return;
       chip.textContent = "v—";
       chip.setAttribute("data-state", "unavailable");
     }
 
-    // Pide la versión al SW mediante un MessageChannel (respuesta puntual)
-    function requestVersion(sw) {
-      let answered = false;
-      const channel = new MessageChannel();
-
-      channel.port1.onmessage = function (e) {
-        if (answered) return;
-        answered = true;
-        try { channel.port1.close(); } catch (err) { /* noop */ }
-
-        if (e && e.data && e.data.type === "VERSION" && e.data.version) {
-          setVersion(e.data.version);
-        } else {
-          setUnavailable();
-        }
-      };
-
-      try {
-        sw.postMessage("GET_VERSION", [channel.port2]);
-      } catch (err) {
-        setUnavailable();
-        return;
+    // Recibe tanto los broadcasts del SW como las respuestas del canal
+    function handleVersionMessage(e) {
+      if (e && e.data && e.data.type === "VERSION" && e.data.version) {
+        setVersion(e.data.version);
       }
+    }
 
-      // Si el SW no responde en 3s, mostramos fallback
-      setTimeout(function () {
-        if (!answered) {
-          answered = true;
-          try { channel.port1.close(); } catch (err) { /* noop */ }
-          setUnavailable();
-        }
-      }, 3000);
+    // Pide la versión al SW mediante un MessageChannel (respuesta puntual).
+    // No marcamos ningún flag "resuelto": si este SW no responde (p. ej. un
+    // SW antiguo sin el handler), seguimos a la escucha de broadcasts o de
+    // un futuro controllerchange.
+    function requestVersion(sw) {
+      if (!sw) return;
+      try {
+        const channel = new MessageChannel();
+        channel.port1.onmessage = handleVersionMessage;
+        sw.postMessage("GET_VERSION", [channel.port2]);
+      } catch (err) { /* noop */ }
     }
 
     if (!("serviceWorker" in navigator)) {
@@ -711,33 +702,36 @@
       return;
     }
 
-    // Si ya hay un SW controlando la página, le pedimos la versión
+    // 1) Escucha broadcasts del SW (emitidos en activate) y respuestas sueltas
+    navigator.serviceWorker.addEventListener("message", handleVersionMessage);
+
+    // 2) Si ya hay un SW controlando, le pedimos la versión directamente
     if (navigator.serviceWorker.controller) {
       requestVersion(navigator.serviceWorker.controller);
-      return;
     }
 
-    // Primer visitante: el SW aún no controla la página.
-    // Esperamos a que tome el control (gracias a clients.claim() en activate).
-    let resolved = false;
+    // 3) Cuando un SW tome el control (primera visita o actualización),
+    //    le pedimos la versión al nuevo controlador
     navigator.serviceWorker.addEventListener("controllerchange", function () {
-      if (resolved) return;
       if (navigator.serviceWorker.controller) {
-        resolved = true;
         requestVersion(navigator.serviceWorker.controller);
-      } else {
-        resolved = true;
-        setUnavailable();
       }
     });
 
-    // Red de seguridad: si tras 6s no hay controlador, mostramos fallback
+    // 4) Vía adicional: consultar el SW activo aunque aún no controle la
+    //    página (cubre el caso de primer visitante antes del clients.claim)
+    window.addEventListener("load", function () {
+      if (navigator.serviceWorker.controller) return;
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (reg && reg.active) requestVersion(reg.active);
+      }).catch(function () { /* noop */ });
+    });
+
+    // 5) Red de seguridad: si tras 8s no hemos recibido ninguna versión,
+    //    mostramos el estado de no disponible (pero seguimos escuchando)
     setTimeout(function () {
-      if (!resolved) {
-        resolved = true;
-        setUnavailable();
-      }
-    }, 6000);
+      if (!gotVersion) setUnavailable();
+    }, 8000);
   })();
 
   /* =========================================================
