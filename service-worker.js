@@ -49,6 +49,18 @@ self.addEventListener('activate', (event) => {
         .map((k) => caches.delete(k))
     );
     await self.clients.claim();
+
+    // Difunde la versión a todos los clientes (también a los que aún no
+    // controla) para que el chip pueda mostrarla de forma proactiva,
+    // sin necesidad de que la página la pida explícitamente.
+    const clients = await self.clients.matchAll({
+      includeUncontrolled: true,
+      type: 'window'
+    });
+    const payload = { type: 'VERSION', version: VERSION };
+    clients.forEach((c) => {
+      try { c.postMessage(payload); } catch (e) { /* noop */ }
+    });
   })());
 });
 
