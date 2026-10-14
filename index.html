@@ -83,6 +83,61 @@
     font-weight: 600;
   }
 
+  /* ---------- Chip de versión ---------- */
+  .version-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    margin-top: 11px;
+    padding: 4px 12px 4px 10px;
+    border-radius: 999px;
+    border: 1px solid #2c2c36;
+    background: linear-gradient(180deg, #1c1c23, #141419);
+    color: #ffd79a;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    font-size: 10.5px;
+    font-weight: 700;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    line-height: 1;
+    box-shadow:
+      inset 0 1px 0 rgba(255,255,255,.04),
+      0 0 12px rgba(255,179,71,.08);
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .version-chip::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--amber);
+    box-shadow: 0 0 8px rgba(255,179,71,.85);
+    flex: 0 0 auto;
+  }
+
+  /* Estado "cargando": punto gris pulsando */
+  .version-chip[data-state="loading"]::before {
+    background: #4c4c58;
+    box-shadow: none;
+    animation: chip-pulse 1.2s ease-in-out infinite;
+  }
+
+  /* Estado "no disponible": punto apagado */
+  .version-chip[data-state="unavailable"] {
+    color: #6a6a76;
+  }
+  .version-chip[data-state="unavailable"]::before {
+    background: #3c3c46;
+    box-shadow: none;
+  }
+
+  @keyframes chip-pulse {
+    0%, 100% { opacity: 1; }
+    50%      { opacity: .35; }
+  }
+
   /* ---------- Tablero ---------- */
   .board {
     padding: clamp(14px, 2.6vw, 26px);
@@ -379,6 +434,7 @@
   <header>
     <h1>Byte</h1>
     <p class="sub">Reloj de tarjetas · 8 bits</p>
+    <span class="version-chip" id="version-chip" data-state="loading">v…</span>
   </header>
 
   <div class="board">
@@ -597,6 +653,91 @@
         history.replaceState(null, "", location.pathname + location.hash);
       } catch (e) { /* noop */ }
     }
+  })();
+
+  /* =========================================================
+     Chip de versión dinámica (la pide al Service Worker)
+     ========================================================= */
+  (function setupVersionChip() {
+    const chip = document.getElementById("version-chip");
+    if (!chip) return;
+
+    function setVersion(v) {
+      chip.textContent = v;
+      chip.setAttribute("data-state", "ready");
+    }
+
+    function setUnavailable() {
+      chip.textContent = "v—";
+      chip.setAttribute("data-state", "unavailable");
+    }
+
+    // Pide la versión al SW mediante un MessageChannel (respuesta puntual)
+    function requestVersion(sw) {
+      let answered = false;
+      const channel = new MessageChannel();
+
+      channel.port1.onmessage = function (e) {
+        if (answered) return;
+        answered = true;
+        try { channel.port1.close(); } catch (err) { /* noop */ }
+
+        if (e && e.data && e.data.type === "VERSION" && e.data.version) {
+          setVersion(e.data.version);
+        } else {
+          setUnavailable();
+        }
+      };
+
+      try {
+        sw.postMessage("GET_VERSION", [channel.port2]);
+      } catch (err) {
+        setUnavailable();
+        return;
+      }
+
+      // Si el SW no responde en 3s, mostramos fallback
+      setTimeout(function () {
+        if (!answered) {
+          answered = true;
+          try { channel.port1.close(); } catch (err) { /* noop */ }
+          setUnavailable();
+        }
+      }, 3000);
+    }
+
+    if (!("serviceWorker" in navigator)) {
+      setUnavailable();
+      return;
+    }
+
+    // Si ya hay un SW controlando la página, le pedimos la versión
+    if (navigator.serviceWorker.controller) {
+      requestVersion(navigator.serviceWorker.controller);
+      return;
+    }
+
+    // Primer visitante: el SW aún no controla la página.
+    // Esperamos a que tome el control (gracias a clients.claim() en activate).
+    let resolved = false;
+    navigator.serviceWorker.addEventListener("controllerchange", function () {
+      if (resolved) return;
+      if (navigator.serviceWorker.controller) {
+        resolved = true;
+        requestVersion(navigator.serviceWorker.controller);
+      } else {
+        resolved = true;
+        setUnavailable();
+      }
+    });
+
+    // Red de seguridad: si tras 6s no hay controlador, mostramos fallback
+    setTimeout(function () {
+      if (!resolved) {
+        resolved = true;
+        setUnavailable();
+      }
+    }, 6000);
   })();
 
   /* =========================================================
